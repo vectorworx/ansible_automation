@@ -1,41 +1,95 @@
----
-- hosts: all
-  become: true
-  pre_tasks:
-  - name: install updates for Fedora
-    tags: fedora, updates
-    ansible.builtin.command: dnf -y upgrade --refresh
-    register: fedora_upgrade
-    changed_when: "'Nothing to do.' not in fedora_upgrade.stdout"
-    when: ansible_distribution == "Fedora"
-  - name: show Fedora upgrade output
-    tags: always
-    ansible.builtin.debug:
-      var: fedora_upgrade.stdout_lines
-    when: ansible_distribution == "Fedora"
-
-  - name: install updates for Ubuntu
-    tags: always
-    ansible.builtin.apt:
-      upgrade: dist
-      update_cache: yes
-    when: ansible_distribution == "Ubuntu"
-
 - hosts: web_servers
   become: true
-  tasks: 
-  - name: install apache on web servers
-    tags: apache, ubuntu
-    ansible.builtin.apt:
-      name: 
-        - apache2
-        - libapache2-mod-php
-    when: ansible_distribution == "Ubuntu"
+  tasks:
+
+    - name: install apache on web servers (Ubuntu)
+      tags: apache, ubuntu
+      ansible.builtin.apt:
+        name:
+          - apache2
+          - libapache2-mod-php
+        state: present
+        update_cache: yes
+      when: ansible_distribution == "Ubuntu"
+
+    - name: install apache on web servers (Fedora)
+      tags: apache, fedora
+      ansible.builtin.command: dnf -y install httpd
+      register: httpd_install
+      changed_when: "'Nothing to do.' not in (httpd_install.stdout | default(''))"
+      failed_when: httpd_install.rc != 0
+      when: ansible_distribution == "Fedora"
+
+    - name: ensure apache is running (Ubuntu)
+      tags: apache, ubuntu
+      ansible.builtin.service:
+        name: apache2
+        state: started
+      when: ansible_distribution == "Ubuntu"
+ 
+    - name: ensure apache is running (fedora)
+      tags: apache, fedora
+      ansible.builtin.service:
+        name: httpd
+        state: started
+      when: ansible_distribution == "Fedora"
+
+    - name: change email address for admin
+      tags: apache, fedora
+      ansible.builtin.lineinfile:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: '^ServerAdmin'
+        line: ServerAdmin somebody@somewhere.net
+      when: ansible_distribution == "Fedora"
+      register: httpd
+
+    - name: restart httpd (Fedora)
+      tags: apache, fedora
+      ansible.builtin.service:
+        name: httpd
+        state: restarted
+      when: httpd.changed
+
+    - name: copy html file for site (Ubuntu)
+      tags: apache, ubuntu
+      ansible.builtin.copy:
+        src: default_site.html
+        dest: /var/www/html/index.html
+        owner: root
+        group: root
+        mode: "0644"
+      when: ansible_distribution == "Ubuntu"
+
 
 - hosts: db_servers
   tags: db, fedora
   become: true
   tasks:
-    - name: install mariadb package on db servers
+
+    - name: ensure rng tools are installed (Fedora)
+      ansible.builtin.command: dnf -y install rng-tools
+      register: rng_install
+      changed_when: "'Nothing to do.' not in (rng_install.stdout | default(''))"
+      failed_when: rng_install.rc != 0
+      when: ansible_distribution == "Fedora"
+
+    - name: ensure rngd is running (Fedora)
+      ansible.builtin.systemd:
+        name: rngd
+        state: started
+        enabled: true
+      when: ansible_distribution == "Fedora"
+
+    - name: install mariadb package on db servers (Fedora)
       ansible.builtin.command: dnf -y install mariadb-server
+      register: mariadb_install
+      changed_when: "'Nothing to do.' not in (mariadb_install.stdout | default(''))"
+      failed_when: mariadb_install.rc != 0
+      when: ansible_distribution == "Fedora"
+
+    - name: enable and start mariadb (Fedora)
+      ansible.builtin.systemd:
+        name: mariadb
+        state: started
+        enabled: true
       when: ansible_distribution == "Fedora"

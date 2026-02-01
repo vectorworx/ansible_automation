@@ -1,0 +1,41 @@
+---
+- hosts: all
+  become: true
+  pre_tasks:
+  - name: install updates for Fedora
+    tags: fedora, updates
+    ansible.builtin.command: dnf -y upgrade --refresh
+    register: fedora_upgrade
+    changed_when: "'Nothing to do.' not in fedora_upgrade.stdout"
+    when: ansible_distribution == "Fedora"
+  - name: show Fedora upgrade output
+    tags: always
+    ansible.builtin.debug:
+      var: fedora_upgrade.stdout_lines
+    when: ansible_distribution == "Fedora"
+
+  - name: install updates for Ubuntu
+    tags: always
+    ansible.builtin.apt:
+      upgrade: dist
+      update_cache: yes
+    when: ansible_distribution == "Ubuntu"
+
+- hosts: web_servers
+  become: true
+  tasks: 
+  - name: install apache on web servers
+    tags: apache, ubuntu
+    ansible.builtin.apt:
+      name: 
+        - apache2
+        - libapache2-mod-php
+    when: ansible_distribution == "Ubuntu"
+
+- hosts: db_servers
+  tags: db, fedora
+  become: true
+  tasks:
+    - name: install mariadb package on db servers
+      ansible.builtin.command: dnf -y install mariadb-server
+      when: ansible_distribution == "Fedora"

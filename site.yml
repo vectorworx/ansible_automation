@@ -12,6 +12,26 @@
         update_cache: yes
       when: ansible_distribution == "Ubuntu"
 
+    - name: create user
+      tags: always
+      ansible.builtin.user:
+        name: tammy
+        groups: root
+
+    - name: add sudoers file for tammy
+      tags: always
+      ansible.builtin.copy:
+        src: sudoer_tammy
+        dest: /etc/sudoers.d/simone
+        group: root
+        mode: 0440
+
+    - name: add ssh key for tammy user
+      tags: always
+      ansible.builtin.authorized_key:
+        user: tammy
+        key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFU+01lame+GCYlJOgRhqrvZqGk1Q7T0w3EHY4LV8PV4 pgelinas@ubuntu-ws"
+
     - name: install apache on web servers (Fedora)
       tags: apache, fedora
       ansible.builtin.command: dnf -y install httpd

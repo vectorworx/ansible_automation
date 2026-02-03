@@ -1,0 +1,6 @@
+- name: install mariadb package on db servers (Fedora)
+  ansible.builtin.command: dnf -y install mariadb-server
+  register: mariadb_install
+  changed_when: "'Nothing to do.' not in (mariadb_install.stdout | default(''))"
+  failed_when: mariadb_install.rc != 0
+  when: ansible_distribution == "Fedora"

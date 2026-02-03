@@ -1,115 +1,38 @@
-- hosts: web_servers
+---
+- name: Pre-tasks (updates)
+  hosts: all
   become: true
-  tasks:
+  pre_tasks:
 
-    - name: install apache on web servers (Ubuntu)
-      tags: apache, ubuntu
+    - name: Install updates for Fedora (dnf5-safe)
+      tags: always
+      ansible.builtin.command: dnf5 -y upgrade --refresh --security --bugfix
+      when: ansible_distribution == "Fedora"
+
+    - name: Install updates for Ubuntu
+      tags: always
       ansible.builtin.apt:
-        name:
-          - apache2
-          - libapache2-mod-php
-        state: present
+        upgrade: dist
         update_cache: yes
       when: ansible_distribution == "Ubuntu"
 
-    - name: create user
-      tags: always
-      ansible.builtin.user:
-        name: tammy
-        groups: root
 
-    - name: add sudoers file for tammy
-      tags: always
-      ansible.builtin.copy:
-        src: sudoer_tammy
-        dest: /etc/sudoers.d/simone
-        group: root
-        mode: 0440
-
-    - name: add ssh key for tammy user
-      tags: always
-      ansible.builtin.authorized_key:
-        user: tammy
-        key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFU+01lame+GCYlJOgRhqrvZqGk1Q7T0w3EHY4LV8PV4 pgelinas@ubuntu-ws"
-
-    - name: install apache on web servers (Fedora)
-      tags: apache, fedora
-      ansible.builtin.command: dnf -y install httpd
-      register: httpd_install
-      changed_when: "'Nothing to do.' not in (httpd_install.stdout | default(''))"
-      failed_when: httpd_install.rc != 0
-      when: ansible_distribution == "Fedora"
-
-    - name: ensure apache is running (Ubuntu)
-      tags: apache, ubuntu
-      ansible.builtin.service:
-        name: apache2
-        state: started
-      when: ansible_distribution == "Ubuntu"
- 
-    - name: ensure apache is running (fedora)
-      tags: apache, fedora
-      ansible.builtin.service:
-        name: httpd
-        state: started
-      when: ansible_distribution == "Fedora"
-
-    - name: change email address for admin
-      tags: apache, fedora
-      ansible.builtin.lineinfile:
-        path: /etc/httpd/conf/httpd.conf
-        regexp: '^ServerAdmin'
-        line: ServerAdmin somebody@somewhere.net
-      when: ansible_distribution == "Fedora"
-      register: httpd
-
-    - name: restart httpd (Fedora)
-      tags: apache, fedora
-      ansible.builtin.service:
-        name: httpd
-        state: restarted
-      when: httpd.changed
-
-    - name: copy html file for site (Ubuntu)
-      tags: apache, ubuntu
-      ansible.builtin.copy:
-        src: default_site.html
-        dest: /var/www/html/index.html
-        owner: root
-        group: root
-        mode: "0644"
-      when: ansible_distribution == "Ubuntu"
-
-
-- hosts: db_servers
-  tags: db, fedora
+- name: Apply base role to all hosts
+  hosts: all
   become: true
-  tasks:
+  roles:
+    - base
 
-    - name: ensure rng tools are installed (Fedora)
-      ansible.builtin.command: dnf -y install rng-tools
-      register: rng_install
-      changed_when: "'Nothing to do.' not in (rng_install.stdout | default(''))"
-      failed_when: rng_install.rc != 0
-      when: ansible_distribution == "Fedora"
 
-    - name: ensure rngd is running (Fedora)
-      ansible.builtin.systemd:
-        name: rngd
-        state: started
-        enabled: true
-      when: ansible_distribution == "Fedora"
+- name: Apply db role to db servers
+  hosts: db_servers
+  become: true
+  roles:
+    - db_servers
 
-    - name: install mariadb package on db servers (Fedora)
-      ansible.builtin.command: dnf -y install mariadb-server
-      register: mariadb_install
-      changed_when: "'Nothing to do.' not in (mariadb_install.stdout | default(''))"
-      failed_when: mariadb_install.rc != 0
-      when: ansible_distribution == "Fedora"
 
-    - name: enable and start mariadb (Fedora)
-      ansible.builtin.systemd:
-        name: mariadb
-        state: started
-        enabled: true
-      when: ansible_distribution == "Fedora"
+- name: Apply web role to web servers
+  hosts: web_servers
+  become: true
+  roles:
+    - web_servers

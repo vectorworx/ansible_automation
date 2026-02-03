@@ -1,0 +1,40 @@
+---
+- name: install apache on Ubuntu
+  tags: apache
+  ansible.builtin.apt:
+    name: apache2
+    state: latest
+    update_cache: true
+  when: ansible_distribution == "Ubuntu"
+
+- name: install apache on Fedora
+  tags: apache
+  ansible.builtin.command: dnf -y install httpd
+  args: 
+    creates: /usr/sbin/httpd
+  when: ansible_distribution == "Fedora"
+
+- name: ensure apache is running
+  tags: apache
+  ansible.builtin.service:
+    name: "{{ apache_service }}"
+    state: started
+    enabled: true
+
+- name: change email address for admin
+  tags: apache,fedora
+  ansible.builtin.lineinfile:
+    path: /etc/httpd/conf/httpd.conf
+    regexp: '^ServerAdmin'
+    line: ServerAdmin somebodysomewhere.com
+  when: ansible_distribution == "Fedora"
+  notify: restart_apache
+
+- name: copy html file for site
+  tags: apache
+  ansible.builtin.copy:
+    src: default_site.html
+    dest: /var/www/html/index.html
+    owner: root
+    group: root
+    mode: '0644'

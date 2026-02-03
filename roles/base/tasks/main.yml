@@ -1,0 +1,41 @@
+- name: create user
+  tags: always
+  ansible.builtin.user:
+    name: tammy
+    groups: root
+
+- name: add sudoers file for tammy
+  tags: always
+  ansible.builtin.copy:
+    src: sudoer_tammy
+    dest: /etc/sudoers.d/tammy
+    owner: root
+    group: root
+    mode: 0440
+
+- name: add ssh key for tammy user
+  tags: always
+  ansible.builtin.authorized_key:
+    user: tammy
+    key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFU+01lame+GCYlJOgRhqrvZqGk1Q7T0w3EHY4LV8PV4 pgelinas@ubuntu-ws"
+
+- name: ensure /run/sshd exists (Ubuntu)
+  tags: ssh
+  ansible.builtin.file:
+    path: /run/sshd
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: ansible_distribution == "Ubuntu"
+
+
+- name: configure openssh based on template
+  ansible.builtin.template:
+    src: "{{ ssh_template_file }}"
+    dest: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: 0644
+    validate: /usr/sbin/sshd -t -f %s
+  notify: restart_sshd
